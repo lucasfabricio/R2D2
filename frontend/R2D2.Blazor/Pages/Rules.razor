@@ -1,0 +1,415 @@
+@page "/rules"
+@using R2D2.Blazor.Models
+
+<PageTitle>Regras de Negócio - R2D2</PageTitle>
+
+<div class="v-page-header">
+    <div class="v-page-title">
+        <h1>Motores de Regras</h1>
+        <p>Defina a inteligência operacional e validações da sua plataforma.</p>
+    </div>
+    <div class="v-header-actions">
+        <button class="btn btn-primary" @onclick="ShowCreateModal">
+            <i>+</i> Nova Regra
+        </button>
+    </div>
+</div>
+
+@if (isLoading)
+{
+    <div class="v-loading-area">
+        <div class="v-spinner"></div>
+        <p>Sincronizando lógica de negócio...</p>
+    </div>
+}
+else if (rules.Count == 0)
+{
+    <div class="v-card v-empty-state">
+        <div class="v-empty-icon">⚙️</div>
+        <h3>Nenhuma regra ativa</h3>
+        <p>Crie sua primeira regra de negócio para automatizar processos e validar dados em tempo real.</p>
+        <button class="btn btn-primary mt-4" @onclick="ShowCreateModal">Configurar Regra</button>
+    </div>
+}
+else
+{
+    <div class="v-rules-list">
+        @foreach (var rule in rules)
+        {
+            <div class="v-card v-rule-card animate-fade-in @(rule.IsActive ? "" : "v-rule-paused")">
+                <div class="v-rule-icon-box">@GetRuleIcon(rule.Type)</div>
+                <div class="v-rule-main">
+                    <div class="v-rule-header">
+                        <h3>@rule.Name</h3>
+                        <div class="v-badge-row">
+                            <span class="v-badge v-badge-type-@rule.Type.ToString().ToLower()">@rule.Type</span>
+                            <span class="v-status-indicator @(rule.IsActive ? "v-bg-success" : "v-bg-muted")"></span>
+                            <span class="v-status-text">@(rule.IsActive ? "Ativa" : "Pausada")</span>
+                        </div>
+                    </div>
+                    <p class="v-rule-desc">@(rule.Description ?? "Lógica interna para processamento de eventos do sistema.")</p>
+                </div>
+                <div class="v-rule-ops">
+                    <button class="v-icon-btn" @onclick="() => ToggleRule(rule)" title="@(rule.IsActive ? "Suspender" : "Ativar")">
+                        @(rule.IsActive ? "⏸️" : "▶️")
+                    </button>
+                    <button class="v-icon-btn" @onclick="() => EditRule(rule)" title="Refinar">✏️</button>
+                    <button class="v-icon-btn v-btn-text-danger" @onclick="() => DeleteRule(rule.Id)" title="Remover">🗑️</button>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@* Modal: Create/Edit Rule *@
+<Modal @ref="ruleModal" Title="@(isEditing ? "Refinar Regra de Negócio" : "Nova Lógica Operacional")" Size="ModalSize.Large">
+    <BodyTemplate>
+        <div class="row g-3 mb-3">
+            <div class="col-md-6">
+                <label class="form-label">Identificação</label>
+                <input type="text" class="form-control" @bind="currentRule.Name" placeholder="Ex: Validação de CPF" />
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Categoria de Regra</label>
+                <select class="form-select" value="@currentRule.Type" @onchange="OnRuleTypeChanged">
+                    @foreach (RuleType type in Enum.GetValues<RuleType>())
+                    {
+                        <option value="@type">@type</option>
+                    }
+                </select>
+            </div>
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Objetivo</label>
+            <textarea class="form-control" @bind="currentRule.Description" rows="2" placeholder="Descreva o impacto desta regra no fluxo de trabalho..."></textarea>
+        </div>
+
+        @if (currentRule.Type == RuleType.InsertData)
+        {
+            <div class="v-insert-data-config">
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">
+                        <span class="me-1">📋</span> Tabela/Lista de Destino
+                    </label>
+                    <select class="form-select" value="@selectedListId" @onchange="OnTargetListChanged">
+                        <option value="">— Selecione uma tabela —</option>
+                        @foreach (var list in availableLists)
+                        {
+                            <option value="@list.Id">@(string.IsNullOrEmpty(list.DisplayName) ? list.Name : $"{list.DisplayName} ({list.Name})")</option>
+                        }
+                    </select>
+                </div>
+
+                @if (availableFields.Count > 0)
+                {
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">
+                            <span class="me-1">📊</span> Colunas para Inserção
+                        </label>
+                        <p class="text-muted small mb-2">Selecione as colunas que receberão dados do formulário. Os valores serão mapeados automaticamente pelo nome do campo.</p>
+                        <div class="v-columns-list">
+                            @foreach (var field in availableFields)
+                            {
+                                var isSelected = selectedColumns.Contains(field.TechnicalName);
+                                <div class="v-column-item @(isSelected ? "v-column-selected" : "")">
+                                    <div class="v-column-check">
+                                        <input type="checkbox" class="form-check-input"
+                                               id="col-@field.Id"
+                                               checked="@isSelected"
+                                               @onchange="(e) => ToggleColumn(field.TechnicalName, (bool)(e.Value ?? false))" />
+                                        <label class="form-check-label" for="col-@field.Id">
+                                            <strong>@field.Label</strong>
+                                            <span class="v-tech-name">@field.TechnicalName</span>
+                                        </label>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+        else
+        {
+            <div class="mb-3">
+                <label class="form-label">Especificação Técnica (JSON)</label>
+                <div class="v-code-preview">
+                    <textarea class="v-code-editor" @bind="currentRule.ConfigurationJson" placeholder='{"condition": "status == 1", "action": "notify"}'></textarea>
+                </div>
+            </div>
+        }
+
+        <div class="mb-3">
+            <label class="form-check-label d-flex align-items-center gap-2">
+                <input type="checkbox" class="form-check-input" @bind="currentRule.IsActive" />
+                <span>Manter regra operacional ativa</span>
+            </label>
+        </div>
+    </BodyTemplate>
+    <FooterTemplate>
+        <button class="btn btn-secondary" @onclick="CloseModal">Descartar</button>
+        <button class="btn btn-primary" @onclick="SaveRule">Confirmar Regra</button>
+    </FooterTemplate>
+</Modal>
+
+<style>
+    .v-loading-area {
+        height: 300px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 16px;
+        color: var(--v-text-muted);
+    }
+
+    .v-rules-list {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+
+    .v-rule-card {
+        padding: 20px 24px;
+        display: flex;
+        align-items: center;
+        gap: 24px;
+        transition: transform 0.2s;
+    }
+
+    .v-rule-card:hover { transform: translateX(4px); }
+    .v-rule-paused { opacity: 0.7; }
+
+    .v-rule-icon-box {
+        width: 56px;
+        height: 56px;
+        background: #F4F7FF;
+        color: var(--v-primary);
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 24px;
+        border: 1px solid var(--v-border);
+    }
+
+    .v-rule-main { flex: 1; }
+
+    .v-rule-header {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        margin-bottom: 6px;
+    }
+
+    .v-rule-header h3 { font-size: 16px; margin: 0; }
+
+    .v-badge-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .v-status-indicator {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+    }
+
+    .v-bg-success { background: var(--v-success); }
+    .v-bg-muted { background: var(--v-text-muted); }
+
+    .v-status-text {
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        color: var(--v-text-muted);
+        letter-spacing: 0.05em;
+    }
+
+    .v-rule-desc {
+        font-size: 14px;
+        color: var(--v-text-muted);
+        margin: 0;
+        max-width: 800px;
+    }
+
+    .v-badge-type-validation { background: #E0F2FE; color: #0369A1; }
+    .v-badge-type-calculate { background: #F3E8FF; color: #6B21A8; }
+
+    .v-rule-ops { display: flex; gap: 6px; }
+
+    .v-icon-btn {
+        background: transparent;
+        border: none;
+        cursor: pointer;
+        padding: 8px;
+        border-radius: 6px;
+        transition: background 0.2s;
+        font-size: 16px;
+        color: var(--v-text-muted);
+    }
+
+    .v-icon-btn:hover { background: #E5E7EB; color: var(--v-text-main); }
+    .v-btn-text-danger:hover { color: var(--v-danger); background: rgba(242, 48, 48, 0.1); }
+
+    /* Modal Styling */
+    .v-modal-backdrop {
+        position: fixed;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(17, 25, 40, 0.6);
+        backdrop-filter: blur(4px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+        padding: 24px;
+    }
+
+    .v-modal-content {
+        width: 100%;
+        max-width: 600px;
+        padding: 0 !important;
+    }
+
+    .v-modal-lg { max-width: 750px; }
+
+    .v-modal-header {
+        padding: 24px 32px;
+        border-bottom: 1px solid var(--v-border);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .v-close-modal {
+        background: transparent;
+        border: none;
+        font-size: 24px;
+        cursor: pointer;
+        color: var(--v-text-muted);
+    }
+
+    .v-modal-body { padding: 32px; }
+
+    .v-modal-footer {
+        padding: 24px 32px;
+        background: #F9FAFB;
+        border-top: 1px solid var(--v-border);
+        display: flex;
+        justify-content: flex-end;
+        gap: 12px;
+    }
+
+    .v-modal-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+    }
+
+    .v-code-preview {
+        background: #111827;
+        border-radius: 10px;
+        padding: 12px;
+        border: 1px solid var(--v-border);
+    }
+
+    .v-code-editor {
+        width: 100%;
+        min-height: 180px;
+        background: transparent;
+        color: #F9FAFB;
+        border: none;
+        font-family: 'Fira Code', 'Courier New', monospace;
+        font-size: 13px;
+        line-height: 1.6;
+        outline: none;
+        resize: vertical;
+    }
+
+    .v-checkbox {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        cursor: pointer;
+        font-size: 13px;
+        font-weight: 500;
+    }
+
+    .v-checkbox input { width: 16px; height: 16px; }
+
+    /* InsertData Config */
+    .v-insert-data-config {
+        background: #F8FAFC;
+        border: 1px solid var(--v-border);
+        border-radius: 10px;
+        padding: 20px;
+        margin-bottom: 16px;
+    }
+
+    .v-columns-list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        max-height: 320px;
+        overflow-y: auto;
+        padding-right: 4px;
+    }
+
+    .v-column-item {
+        background: #ffffff;
+        border: 1px solid #E5E7EB;
+        border-radius: 8px;
+        padding: 12px 16px;
+        transition: all 0.2s;
+    }
+
+    .v-column-item:hover { border-color: var(--v-primary); }
+
+    .v-column-selected {
+        background: #EFF6FF;
+        border-color: #93C5FD;
+    }
+
+    .v-column-check {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .v-column-check label {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        cursor: pointer;
+        margin: 0;
+        font-size: 14px;
+    }
+
+    .v-tech-name {
+        font-size: 11px;
+        font-family: 'Fira Code', monospace;
+        color: #6B7280;
+        background: #F3F4F6;
+        padding: 1px 6px;
+        border-radius: 4px;
+    }
+
+    .v-mapping-input {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 8px;
+        padding-left: 26px;
+    }
+
+    .v-mapping-arrow {
+        color: var(--v-primary);
+        font-weight: 700;
+        font-size: 16px;
+    }
+
+    .v-mapping-input .form-control {
+        max-width: 320px;
+    }
+</style>

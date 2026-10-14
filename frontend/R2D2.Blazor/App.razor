@@ -1,0 +1,23 @@
+﻿<CascadingAuthenticationState>
+    <Router AppAssembly="@typeof(App).Assembly">
+        <Found Context="routeData">
+            <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(Shared.MainLayout)">
+                <NotAuthorized>
+                    <RedirectToLogin />
+                </NotAuthorized>
+            </AuthorizeRouteView>
+            <FocusOnNavigate RouteData="@routeData" Selector="h1" />
+        </Found>
+        <NotFound>
+            <PageTitle>Not found</PageTitle>
+            <LayoutView Layout="@typeof(Shared.MainLayout)">
+                <div class="v-empty-card glass-card animate-fade-in" style="max-width: 600px; margin: 4rem auto;">
+                    <h1 style="font-size: 8rem; margin: 0; background: linear-gradient(135deg, var(--v-primary) 0%, var(--v-secondary) 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: 900;">404</h1>
+                    <h3 style="margin-bottom: 1rem;">Destino não Encontrado</h3>
+                    <p style="color: var(--v-text-muted); margin-bottom: 2rem;">A coordenada de dados que você tentou acessar não faz parte desta arquitetura.</p>
+                    <a href="/" class="btn btn-primary">Voltar ao Radar</a>
+                </div>
+            </LayoutView>
+        </NotFound>
+    </Router>
+</CascadingAuthenticationState>

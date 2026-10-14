@@ -1,0 +1,240 @@
+﻿@using R2D2.Blazor.Services
+@inject ApiService ApiService
+@inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthStateProvider
+@inherits LayoutComponentBase
+
+<div class="d-flex min-vh-100" style="background: var(--v-bg-body);">
+    <AuthorizeView>
+        <Authorized>
+            <aside class="v-sidebar d-flex flex-column">
+                <div class="px-4 py-4 mb-3">
+                    <div class="d-flex align-items-center gap-2">
+                        <div class="v-logo-icon">R</div>
+                        <div class="d-flex flex-column">
+                            <span class="fw-bold fs-5 text-dark lh-1">R2D2</span>
+                            <span class="v-platform">Low-Code System</span>
+                        </div>
+                    </div>
+                </div>
+
+                <nav class="flex-grow-1 px-3 d-flex flex-column gap-1 overflow-auto">
+                    <div class="v-nav-group">Menu Principal</div>
+                    <NavLink href="/" class="v-nav-link" Match="NavLinkMatch.All">
+                        <i class="v-nav-icon">🏠</i>
+                        <span>Início</span>
+                    </NavLink>
+                    
+                    <div class="v-nav-group">Gerenciamento</div>
+                    <NavLink href="/lists" class="v-nav-link">
+                        <i class="v-nav-icon">📊</i>
+                        <span>Listas</span>
+                    </NavLink>
+                    <NavLink href="/forms" class="v-nav-link">
+                        <i class="v-nav-icon">📝</i>
+                        <span>Formulários</span>
+                    </NavLink>
+                    <NavLink href="/list-views" class="v-nav-link">
+                        <i class="v-nav-icon">📋</i>
+                        <span>Visões de Listas</span>
+                    </NavLink>
+                    <NavLink href="/rules" class="v-nav-link">
+                        <i class="v-nav-icon">⚙️</i>
+                        <span>Regras</span>
+                    </NavLink>
+                    <NavLink href="/workflows" class="v-nav-link">
+                        <i class="v-nav-icon">🔀</i>
+                        <span>Fluxos</span>
+                    </NavLink>
+
+                    <div class="v-nav-group">Execução</div>
+                    <NavLink href="/data" class="v-nav-link">
+                        <i class="v-nav-icon">💾</i>
+                        <span>Explorar Dados</span>
+                    </NavLink>
+                </nav>
+
+                <div class="border-top mt-3 pt-3 px-4">
+                    <div class="text-center text-muted" style="font-size: 11px;">Versão 2.1.0 (TailDash)</div>
+                </div>
+            </aside>
+        </Authorized>
+    </AuthorizeView>
+
+    <div class="v-main-wrapper d-flex flex-column flex-grow-1" style="@(_isAuthenticated ? "" : "margin-left: 0;")">
+        <AuthorizeView>
+            <Authorized>
+                <header class="v-header d-flex align-items-center justify-content-between px-4 sticky-top">
+                    <div>
+                        <div class="v-search-bar">
+                            <i>🔍</i>
+                            <input type="text" placeholder="Pesquisar componentes..." />
+                        </div>
+                    </div>
+                    <div class="d-flex align-items-center">
+                        <div class="d-flex align-items-center gap-3">
+                            <div class="text-end">
+                                <span class="d-block fw-bold" style="font-size: 14px;">Administrador</span>
+                                <span class="d-block text-muted" style="font-size: 12px;">Super Usuário</span>
+                            </div>
+                            <div class="v-user-avatar">AD</div>
+                            <button class="v-icon-btn" @onclick="HandleLogout" title="Sair">🚪</button>
+                        </div>
+                    </div>
+                </header>
+            </Authorized>
+        </AuthorizeView>
+
+        <main class="p-4 flex-grow-1 animate-fade-in">
+            @Body
+        </main>
+    </div>
+</div>
+
+@code {
+    private bool _isInitialized;
+    private bool _isAuthenticated;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && !_isInitialized)
+        {
+            await ApiService.InitializeAsync();
+            _isInitialized = true;
+
+            // Signal that JS Interop is now available — re-evaluate auth state
+            if (AuthStateProvider is CustomAuthenticationStateProvider customProvider)
+            {
+                await customProvider.MarkAsReadyAsync();
+            }
+
+            // Update local flag for UI (sidebar margin)
+            var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+            _isAuthenticated = authState.User.Identity?.IsAuthenticated ?? false;
+
+            StateHasChanged();
+        }
+    }
+
+    private async Task HandleLogout()
+    {
+        await ApiService.ClearAuthTokenAsync();
+        Navigation.NavigateTo("/login");
+    }
+}
+
+<style>
+    .v-sidebar {
+        width: 280px;
+        background: var(--v-bg-sidebar);
+        border-right: 1px solid var(--v-border);
+        position: fixed;
+        height: 100vh;
+        z-index: 100;
+    }
+
+    .v-logo-icon {
+        width: 36px;
+        height: 36px;
+        background: var(--v-primary);
+        color: white;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 800;
+        font-size: 18px;
+    }
+
+    .v-platform {
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--v-text-muted);
+        text-transform: uppercase;
+        margin-top: 2px;
+    }
+
+    .v-nav-group {
+        font-size: 11px;
+        font-weight: 700;
+        color: var(--v-text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        padding: 24px 14px 12px;
+    }
+
+    .v-nav-link {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 14px;
+        color: var(--v-text-muted);
+        text-decoration: none !important;
+        font-weight: 500;
+        border-radius: 8px;
+        transition: all 0.2s;
+    }
+
+    .v-nav-link:hover {
+        color: var(--v-primary);
+        background: rgba(48, 86, 211, 0.05);
+    }
+
+    .v-nav-link.active {
+        background: var(--v-primary);
+        color: white;
+    }
+
+    .v-nav-icon {
+        font-style: normal;
+        font-size: 18px;
+    }
+
+    .v-main-wrapper {
+        margin-left: 280px;
+    }
+
+    .v-header {
+        height: 80px;
+        background: var(--v-bg-header);
+        border-bottom: 1px solid var(--v-border);
+        z-index: 90;
+    }
+
+    .v-search-bar {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        background: #F9FAFB;
+        border: 1px solid var(--v-border);
+        border-radius: 100px;
+        padding: 8px 20px;
+        width: 320px;
+    }
+
+    .v-search-bar i { font-style: normal; opacity: 0.5; }
+    .v-search-bar input {
+        border: none !important;
+        background: transparent !important;
+        padding: 0 !important;
+        font-size: 13px !important;
+        box-shadow: none !important;
+    }
+
+    .v-user-avatar {
+        width: 44px;
+        height: 44px;
+        background: #E5E7EB;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        color: var(--v-text-main);
+    }
+
+    @@media (max-width: 1024px) {
+        .v-sidebar { transform: translateX(-100%); }
+        .v-main-wrapper { margin-left: 0; }
+    }
+</style>

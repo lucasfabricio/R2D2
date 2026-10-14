@@ -1,0 +1,420 @@
+/* R2D2 Low-Code Platform - Design System + Bootstrap Overrides */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+/* ================================================================
+   CSS VARIABLES — Custom Design Tokens
+   ================================================================ */
+:root {
+    --v-primary: #3056D3;
+    --v-primary-dark: #2444A5;
+    --v-primary-light: #4A6CF7;
+
+    --v-bg-body: #F4F7FF;
+    --v-bg-card: #FFFFFF;
+    --v-bg-sidebar: #FFFFFF;
+    --v-bg-header: #FFFFFF;
+
+    --v-text-main: #111928;
+    --v-text-muted: #637381;
+
+    --v-border: #E5E7EB;
+    --v-shadow-sm: 0px 1px 3px rgba(0, 0, 0, 0.05);
+    --v-shadow-md: 0px 4px 6px -1px rgba(0, 0, 0, 0.1), 0px 2px 4px -1px rgba(0, 0, 0, 0.06);
+
+    --v-success: #22C55E;
+    --v-danger: #F23030;
+    --v-warning: #FBBF24;
+    --v-info: #3BA2B8;
+
+    --v-radius-xl: 12px;
+    --v-radius-lg: 10px;
+    --v-radius-md: 8px;
+    --v-radius-sm: 4px;
+
+    /* Bootstrap variable overrides */
+    --bs-primary: #3056D3;
+    --bs-primary-rgb: 48, 86, 211;
+    --bs-body-font-family: 'Inter', sans-serif;
+    --bs-body-color: #111928;
+    --bs-border-color: #E5E7EB;
+}
+
+/* ================================================================
+   BASE RESET + TYPOGRAPHY
+   ================================================================ */
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
+html,
+body {
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--v-text-main);
+    background: var(--v-bg-body);
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+    font-weight: 700;
+    color: var(--v-text-main);
+    letter-spacing: -0.02em;
+}
+
+/* ================================================================
+   BOOTSTRAP OVERRIDES — Match R2D2 Design
+   ================================================================ */
+
+/* Buttons */
+.btn {
+    font-weight: 600;
+    font-size: 14px;
+    border-radius: var(--v-radius-md);
+    transition: all 0.2s;
+}
+
+.btn-primary {
+    background: var(--v-primary);
+    border-color: var(--v-primary);
+}
+
+.btn-primary:hover,
+.btn-primary:focus {
+    background: var(--v-primary-dark);
+    border-color: var(--v-primary-dark);
+}
+
+.btn-outline-primary {
+    color: var(--v-primary);
+    border-color: var(--v-primary);
+}
+
+.btn-outline-primary:hover {
+    background: var(--v-primary);
+    border-color: var(--v-primary);
+}
+
+/* Cards */
+.card {
+    border: 1px solid var(--v-border);
+    border-radius: var(--v-radius-xl);
+    box-shadow: var(--v-shadow-sm);
+    transition: box-shadow 0.2s ease;
+}
+
+.card:hover {
+    box-shadow: var(--v-shadow-md);
+}
+
+/* Legacy v-card (still used in sidebar, etc.) */
+.v-card {
+    background: var(--v-bg-card);
+    border: 1px solid var(--v-border);
+    border-radius: var(--v-radius-xl);
+    box-shadow: var(--v-shadow-sm);
+    padding: 24px;
+    transition: box-shadow 0.2s ease;
+}
+
+.v-card:hover {
+    box-shadow: var(--v-shadow-md);
+}
+
+/* Form Controls */
+.form-control,
+.form-select {
+    border: 1px solid var(--v-border);
+    border-radius: var(--v-radius-md);
+    font-size: 14px;
+    padding: 10px 14px;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.form-control:focus,
+.form-select:focus {
+    border-color: var(--v-primary);
+    box-shadow: 0 0 0 3px rgba(48, 86, 211, 0.1);
+}
+
+.form-label {
+    font-weight: 600;
+    color: var(--v-text-main);
+    margin-bottom: 6px;
+    font-size: 13px;
+}
+
+/* Tables */
+.table>thead>tr>th {
+    background: #F9FAFB;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--v-text-muted);
+    letter-spacing: 0.05em;
+    border-bottom: 1px solid var(--v-border);
+}
+
+.table>tbody>tr>td {
+    color: var(--v-text-main);
+    vertical-align: middle;
+}
+
+/* Modals */
+.modal-content {
+    border-radius: 16px;
+    border: none;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+}
+
+.modal-header {
+    border-bottom-color: var(--v-border);
+    padding: 24px 28px;
+}
+
+.modal-header .modal-title {
+    font-size: 20px;
+    font-weight: 700;
+}
+
+.modal-body {
+    padding: 24px 28px;
+}
+
+.modal-footer {
+    border-top-color: var(--v-border);
+    padding: 20px 28px;
+}
+
+.modal-backdrop.show {
+    backdrop-filter: blur(4px);
+}
+
+/* ================================================================
+   R2D2 CUSTOM COMPONENTS — Shared
+   ================================================================ */
+
+/* Badges */
+.v-badge {
+    display: inline-flex;
+    padding: 4px 12px;
+    border-radius: 9999px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.v-badge-sm {
+    padding: 2px 8px;
+    font-size: 11px;
+    margin-left: 6px;
+}
+
+.v-badge-info {
+    background: rgba(59, 162, 184, 0.1);
+    color: #155E75;
+}
+
+.v-badge-success {
+    background: rgba(34, 197, 94, 0.1);
+    color: #166534;
+}
+
+.v-badge-danger {
+    background: rgba(242, 48, 48, 0.1);
+    color: #991B1B;
+}
+
+.v-badge-warning,
+.v-badge-warn {
+    background: #FEF3C7;
+    color: #92400E;
+}
+
+.v-badge-workflow {
+    background: #FEF3C7;
+    color: #B45309;
+}
+
+/* Status dot colors */
+.v-bg-blue {
+    background: rgba(48, 86, 211, 0.1);
+    color: #3056D3;
+}
+
+.v-bg-green {
+    background: rgba(34, 197, 94, 0.1);
+    color: #22C55E;
+}
+
+.v-bg-purple {
+    background: rgba(139, 92, 246, 0.1);
+    color: #8B5CF6;
+}
+
+.v-bg-orange {
+    background: rgba(251, 191, 36, 0.1);
+    color: #FBBF24;
+}
+
+.v-bg-red {
+    background: rgba(242, 48, 48, 0.1);
+    color: #F23030;
+}
+
+/* Alerts */
+.v-alert {
+    padding: 16px;
+    border-radius: var(--v-radius-md);
+    font-size: 14px;
+    display: flex;
+    gap: 8px;
+}
+
+.v-alert-danger {
+    background: #FEF2F2;
+    border: 1px solid #FEE2E2;
+    color: #991B1B;
+}
+
+/* Spinners */
+.v-spinner {
+    display: inline-block;
+    width: 18px;
+    height: 18px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    border-top-color: white;
+    animation: v-spin 0.8s linear infinite;
+    margin-right: 12px;
+    vertical-align: middle;
+}
+
+.v-spinner-lg {
+    width: 3rem;
+    height: 3rem;
+    border-width: 4px;
+    border-color: #f3f3f3;
+    border-top-color: #667eea;
+    margin: 0 auto 1rem;
+}
+
+@keyframes v-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Icon buttons */
+.v-icon-btn {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 6px;
+    transition: background 0.2s;
+    font-size: 16px;
+    color: var(--v-text-muted);
+}
+
+.v-icon-btn:hover {
+    background: #E5E7EB;
+    color: var(--v-text-main);
+}
+
+.v-icon-btn.text-danger:hover {
+    color: var(--v-danger);
+    background: rgba(242, 48, 48, 0.1);
+}
+
+/* ID code badges */
+.v-id-code {
+    background: #F3F4F6;
+    color: var(--v-text-muted);
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-family: 'Fira Code', monospace;
+    font-size: 11px;
+    font-weight: 600;
+    border: 1px solid var(--v-border);
+}
+
+/* Animations */
+.animate-fade-in {
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Empty states */
+.v-empty-state {
+    text-align: center;
+    padding: 80px 20px;
+}
+
+.v-empty-state .v-empty-icon {
+    font-size: 64px;
+    margin-bottom: 16px;
+}
+
+.v-empty-state h3 {
+    color: var(--v-text-main);
+    margin: 0 0 8px;
+}
+
+.v-empty-state p {
+    color: var(--v-text-muted);
+}
+
+/* Page header */
+.v-page-header {
+    margin-bottom: 32px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.v-page-title h1 {
+    font-size: 24px;
+    margin-bottom: 4px;
+}
+
+.v-page-title p {
+    color: var(--v-text-muted);
+}
+
+/* Card grid — clickable cards */
+.v-clickable-card {
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.v-clickable-card:hover {
+    border-color: var(--v-primary) !important;
+    box-shadow: 0 4px 12px rgba(48, 86, 211, 0.08);
+    transform: translateY(-2px);
+}
+
+/* Field tech name in monospace */
+.v-field-tech {
+    font-size: 12px;
+    color: var(--v-text-muted);
+    font-family: monospace;
+}

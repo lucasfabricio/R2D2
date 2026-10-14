@@ -1,0 +1,388 @@
+@page "/form-builder/{FormId:guid}"
+@inject ApiService ApiService
+@inject NavigationManager Navigation
+
+<div class="v-page">
+    <div class="v-page-header">
+        <div class="v-page-header-left">
+            <button class="v-btn v-btn-sm" @onclick="GoBack">← Voltar</button>
+            <div>
+                <h1 class="v-page-title">🎨 @(form?.Name ?? "Formulário")</h1>
+                <p class="v-page-subtitle">Designer de formulário</p>
+            </div>
+        </div>
+        @if (form != null)
+        {
+            <div class="d-flex align-items-center gap-2">
+                <select class="v-input" style="width: auto; min-width: 160px;" @bind="form.FormType">
+                    <option value="0">📥 Cadastro</option>
+                    <option value="1">✏️ Atualização</option>
+                </select>
+                <button class="v-btn v-btn-primary" @onclick="OpenAddFieldModal">
+                    ➕ Adicionar Campo
+                </button>
+            </div>
+        }
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="v-loading">Carregando...</div>
+    }
+    else if (form == null)
+    {
+        <div class="v-empty-state">
+            <div class="v-empty-icon">⚠️</div>
+            <h3>Formulário não encontrado</h3>
+        </div>
+    }
+    else
+    {
+        <div class="fb-layout">
+            @* Form Preview *@
+            <div class="fb-preview">
+                <div class="fb-preview-header">
+                    <h2>Pré-visualização</h2>
+                </div>
+                <div class="fb-preview-body">
+                    @if (!form.Fields.Any())
+                    {
+                        <div class="fb-empty">
+                            <p>Adicione campos ao formulário usando o botão acima</p>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="fb-grid">
+                            @foreach (var field in form.Fields.OrderBy(f => f.Order))
+                            {
+                                <div class="fb-field @(selectedFieldId == field.Id ? "fb-field-selected" : "")"
+                                     style="grid-column: span @field.ColumnSize;"
+                                     @onclick="() => SelectField(field)">
+                                    <div class="fb-field-label">
+                                        @field.Label
+                                        @if (field.LinkedListId.HasValue)
+                                        {
+                                            <span class="fb-field-link" title="Vinculado à lista: @field.LinkedListName">🔗</span>
+                                        }
+                                    </div>
+                                    @switch (field.FieldType)
+                                    {
+                                        case FormFieldType.Text:
+                                            <input type="text" class="v-input" disabled placeholder="Texto" />
+                                            break;
+                                        case FormFieldType.Number:
+                                            <input type="number" class="v-input" disabled placeholder="0" />
+                                            break;
+                                        case FormFieldType.Date:
+                                            <input type="date" class="v-input" disabled />
+                                            break;
+                                        case FormFieldType.Select:
+                                            <select class="v-input" disabled>
+                                                <option>Selecione...</option>
+                                            </select>
+                                            break;
+                                        case FormFieldType.Checkbox:
+                                            <div class="fb-checkbox-preview"><input type="checkbox" disabled /> @field.Label</div>
+                                            break;
+                                        case FormFieldType.Radio:
+                                            <div class="fb-radio-preview"><input type="radio" disabled /> Opção</div>
+                                            break;
+                                        case FormFieldType.TextArea:
+                                            <textarea class="v-input" rows="3" disabled placeholder="Texto longo..."></textarea>
+                                            break;
+                                    }
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+
+            @* Field Properties Panel *@
+            @if (selectedField != null)
+            {
+                <div class="fb-props">
+                    <div class="fb-props-header">
+                        <h3>Propriedades do Campo</h3>
+                        <button class="v-btn-close" @onclick="DeselectField">✕</button>
+                    </div>
+                    <div class="fb-props-body">
+                        <div class="v-form-group">
+                            <label>Label</label>
+                            <input type="text" class="v-input" @bind="selectedField.Label" />
+                        </div>
+                        <div class="v-form-group">
+                            <label>Tipo do Campo</label>
+                            <select class="v-input" @bind="selectedField.FieldType">
+                                @foreach (var ft in Enum.GetValues<FormFieldType>())
+                                {
+                                    <option value="@ft">@ft</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="v-form-group">
+                            <label>Tamanho (Colunas 1-12)</label>
+                            <input type="number" class="v-input" @bind="selectedField.ColumnSize" min="1" max="12" />
+                        </div>
+                        <div class="v-form-group">
+                            <label>Ordem</label>
+                            <input type="number" class="v-input" @bind="selectedField.Order" min="0" />
+                        </div>
+
+                        @if (form.FormType == 1)
+                        {
+                            <div class="v-form-group">
+                                <div class="form-check">
+                                    <input type="checkbox" class="form-check-input" id="chk-readonly" @bind="selectedField.IsReadOnly" />
+                                    <label class="form-check-label" for="chk-readonly">Somente Leitura</label>
+                                </div>
+                                <small class="text-muted">Campo será exibido mas não poderá ser editado.</small>
+                            </div>
+                        }
+
+                        <div class="fb-props-divider"></div>
+                        <h4 class="fb-props-section">Vínculo com Lista</h4>
+
+                        <div class="v-form-group">
+                            <label>Lista Vinculada</label>
+                            <select class="v-input" value="@selectedField.LinkedListId" @onchange="OnLinkedListChanged">
+                                <option value="">Nenhuma</option>
+                                @foreach (var list in availableLists)
+                                {
+                                    <option value="@list.Id">@(string.IsNullOrEmpty(list.DisplayName) ? list.Name : $"{list.DisplayName} ({list.Name})")</option>
+                                }
+                            </select>
+                        </div>
+
+                        @if (selectedField.LinkedListId.HasValue)
+                        {
+                            var linkedList = availableLists.FirstOrDefault(l => l.Id == selectedField.LinkedListId);
+                            @if (linkedList != null)
+                            {
+                                <div class="v-form-group">
+                                    <label>Campo Vinculado</label>
+                                    <select class="v-input" @bind="selectedField.LinkedFieldId">
+                                        <option value="">Nenhum</option>
+                                        @foreach (var f in linkedList.Fields)
+                                        {
+                                            <option value="@f.Id">@f.Label (@f.TechnicalName)</option>
+                                        }
+                                    </select>
+                                </div>
+                            }
+                        }
+
+                        @if (selectedField.FieldType == FormFieldType.Select)
+                        {
+                            <div class="fb-props-divider"></div>
+                            <h4 class="fb-props-section">Fonte de Dados do Select</h4>
+
+                            <div class="v-form-group">
+                                <label>Lista (Fonte de Dados)</label>
+                                <select class="v-input" value="@selectedField.SelectSourceListId" @onchange="OnSelectSourceListChanged">
+                                    <option value="">Nenhuma</option>
+                                    @foreach (var list in availableLists)
+                                    {
+                                        <option value="@list.Id">@(string.IsNullOrEmpty(list.DisplayName) ? list.Name : $"{list.DisplayName} ({list.Name})")</option>
+                                    }
+                                </select>
+                            </div>
+
+                            @if (selectedField.SelectSourceListId.HasValue)
+                            {
+                                var selectList = availableLists.FirstOrDefault(l => l.Id == selectedField.SelectSourceListId);
+                                @if (selectList != null)
+                                {
+                                    <div class="v-form-group">
+                                        <label>Coluna de Valor (value)</label>
+                                        <select class="v-input" @bind="selectedField.SelectValueField">
+                                            <option value="">ID do Registro (padrão)</option>
+                                            <option value="sys_id">ID (sys_id)</option>
+                                            @foreach (var f in selectList.Fields)
+                                            {
+                                                <option value="@f.TechnicalName">@f.Label (@f.TechnicalName)</option>
+                                            }
+                                        </select>
+                                    </div>
+
+                                    <div class="v-form-group">
+                                        <label>Coluna de Texto (display)</label>
+                                        <select class="v-input" @bind="selectedField.SelectDisplayField">
+                                            <option value="">Auto-detectar</option>
+                                            <option value="sys_id">ID (sys_id)</option>
+                                            @foreach (var f in selectList.Fields)
+                                            {
+                                                <option value="@f.TechnicalName">@f.Label (@f.TechnicalName)</option>
+                                            }
+                                        </select>
+                                    </div>
+
+                                    <div class="v-form-group">
+                                        <label>Filtrar por Coluna</label>
+                                        <select class="v-input" @bind="selectedField.SelectSourceFilterField">
+                                            <option value="">Nenhum filtro</option>
+                                            <option value="sys_id">ID (sys_id)</option>
+                                            @foreach (var f in selectList.Fields)
+                                            {
+                                                <option value="@f.TechnicalName">@f.Label (@f.TechnicalName)</option>
+                                            }
+                                        </select>
+                                    </div>
+
+                                    @if (!string.IsNullOrEmpty(selectedField.SelectSourceFilterField))
+                                    {
+                                        <div class="v-form-group">
+                                            <label>Valor do Filtro</label>
+                                            <input type="text" class="v-input" @bind="selectedField.SelectSourceFilterValue" placeholder="Valor exato para filtrar..." />
+                                        </div>
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                <p style="color:var(--v-text-muted);font-size:13px;">Selecione uma lista para configurar as colunas de valor e texto.</p>
+                            }
+
+                            <div class="fb-props-divider"></div>
+                            <h4 class="fb-props-section">Cascata</h4>
+
+                            <div class="v-form-group">
+                                <label>Campo Pai (Dependência)</label>
+                                <select class="v-input" @bind="selectedField.ParentFormFieldId">
+                                    <option value="">Nenhum</option>
+                                    @foreach (var f in form.Fields.Where(f => f.Id != selectedField.Id))
+                                    {
+                                        <option value="@f.Id">@f.Label</option>
+                                    }
+                                </select>
+                            </div>
+
+                            <div class="v-form-group">
+                                <label>Campo Filtro na Lista</label>
+                                @if (selectedField.SelectSourceListId.HasValue)
+                                {
+                                    var filterList = availableLists.FirstOrDefault(l => l.Id == selectedField.SelectSourceListId);
+                                    <select class="v-input" @bind="selectedField.CascadeFilterField">
+                                        <option value="">Selecione...</option>
+                                        @if (filterList != null)
+                                        {
+                                            <option value="sys_id">ID (sys_id)</option>
+                                            @foreach (var f in filterList.Fields)
+                                            {
+                                                <option value="@f.TechnicalName">@f.Label (@f.TechnicalName)</option>
+                                            }
+                                        }
+                                    </select>
+                                }
+                                else
+                                {
+                                    <select class="v-input" disabled>
+                                        <option>Selecione uma lista primeiro</option>
+                                    </select>
+                                }
+                                <small style="color:var(--v-text-muted);font-size:12px;margin-top:4px;display:block;">Campo da lista que será usado como filtro baseado no valor do campo pai.</small>
+                            </div>
+                        }
+
+                        <div class="fb-props-actions">
+                            <button class="v-btn v-btn-primary" @onclick="SaveSelectedField">💾 Salvar</button>
+                            <button class="v-btn v-btn-danger" @onclick="DeleteSelectedField">🗑 Excluir</button>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@* Add Field Modal *@
+@if (showAddFieldModal)
+{
+    <div class="v-modal-overlay" @onclick="CloseAddFieldModal">
+        <div class="v-modal v-modal-sm" @onclick:stopPropagation="true">
+            <div class="v-modal-header">
+                <h2>Adicionar Campo</h2>
+                <button class="v-btn-close" @onclick="CloseAddFieldModal">✕</button>
+            </div>
+            <div class="v-modal-body">
+                <div class="v-form-group">
+                    <label>Label</label>
+                    <input type="text" class="v-input" @bind="newField!.Label" placeholder="Label do campo" />
+                </div>
+                <div class="v-form-group">
+                    <label>Tipo do Campo</label>
+                    <select class="v-input" @bind="newField!.FieldType">
+                        @foreach (var ft in Enum.GetValues<FormFieldType>())
+                        {
+                            <option value="@ft">@ft</option>
+                        }
+                    </select>
+                </div>
+                <div class="v-form-group">
+                    <label>Tamanho (Colunas 1-12)</label>
+                    <input type="number" class="v-input" @bind="newField!.ColumnSize" min="1" max="12" />
+                </div>
+            </div>
+            <div class="v-modal-footer">
+                <button class="v-btn" @onclick="CloseAddFieldModal">Cancelar</button>
+                <button class="v-btn v-btn-primary" @onclick="AddField">➕ Adicionar</button>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .v-page { max-width: 1400px; }
+    .v-page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px; }
+    .v-page-header-left { display: flex; align-items: center; gap: 16px; }
+    .v-page-title { font-size: 28px; font-weight: 800; color: var(--v-text-main); margin: 0; }
+    .v-page-subtitle { font-size: 14px; color: var(--v-text-muted); margin: 4px 0 0; }
+    .v-loading { text-align: center; padding: 60px; color: var(--v-text-muted); }
+    .v-empty-state { text-align: center; padding: 80px 20px; }
+    .v-empty-icon { font-size: 64px; margin-bottom: 16px; }
+
+    .fb-layout { display: flex; gap: 24px; }
+    .fb-preview { flex: 1; background: white; border: 1px solid var(--v-border); border-radius: 12px; min-height: 400px; }
+    .fb-preview-header { padding: 16px 24px; border-bottom: 1px solid var(--v-border); }
+    .fb-preview-header h2 { margin: 0; font-size: 16px; font-weight: 700; }
+    .fb-preview-body { padding: 24px; }
+    .fb-empty { text-align: center; padding: 60px; color: var(--v-text-muted); }
+
+    .fb-grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 16px; }
+    .fb-field { padding: 12px 16px; border: 2px dashed var(--v-border); border-radius: 8px; cursor: pointer; transition: all 0.2s; }
+    .fb-field:hover { border-color: var(--v-primary); background: #F8FAFF; }
+    .fb-field-selected { border-color: var(--v-primary); border-style: solid; background: #EFF6FF; }
+    .fb-field-label { font-size: 13px; font-weight: 600; color: var(--v-text-main); margin-bottom: 6px; display: flex; align-items: center; gap: 4px; }
+    .fb-field-link { font-size: 14px; }
+    .fb-checkbox-preview, .fb-radio-preview { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--v-text-muted); }
+
+    .fb-props { width: 340px; background: white; border: 1px solid var(--v-border); border-radius: 12px; max-height: calc(100vh - 200px); display: flex; flex-direction: column; }
+    .fb-props-header { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid var(--v-border); }
+    .fb-props-header h3 { margin: 0; font-size: 15px; font-weight: 700; }
+    .fb-props-body { padding: 20px; overflow-y: auto; flex: 1; }
+    .fb-props-divider { height: 1px; background: var(--v-border); margin: 16px 0; }
+    .fb-props-section { font-size: 13px; font-weight: 700; color: var(--v-text-muted); text-transform: uppercase; margin: 0 0 12px; }
+    .fb-props-actions { display: flex; gap: 8px; margin-top: 20px; }
+
+    .v-btn { display: inline-flex; align-items: center; gap: 6px; padding: 10px 20px; border-radius: 8px; font-weight: 600; font-size: 14px; border: 1px solid var(--v-border); background: white; color: var(--v-text-main); cursor: pointer; transition: all 0.2s; }
+    .v-btn:hover { background: #F9FAFB; }
+    .v-btn-primary { background: var(--v-primary); color: white; border-color: var(--v-primary); }
+    .v-btn-primary:hover { opacity: 0.9; background: var(--v-primary); }
+    .v-btn-danger { background: #FEE2E2; color: #DC2626; border-color: #FECACA; }
+    .v-btn-sm { padding: 6px 12px; font-size: 12px; }
+    .v-btn-close { background: none; border: none; font-size: 20px; cursor: pointer; color: var(--v-text-muted); }
+
+    .v-modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; z-index: 1000; backdrop-filter: blur(4px); }
+    .v-modal { background: white; border-radius: 16px; width: 90%; max-width: 760px; max-height: 90vh; display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0,0,0,0.15); }
+    .v-modal-sm { max-width: 480px; }
+    .v-modal-header { display: flex; justify-content: space-between; align-items: center; padding: 24px 28px; border-bottom: 1px solid var(--v-border); }
+    .v-modal-header h2 { margin: 0; font-size: 20px; font-weight: 700; }
+    .v-modal-body { padding: 24px 28px; overflow-y: auto; flex: 1; }
+    .v-modal-footer { display: flex; justify-content: flex-end; gap: 12px; padding: 20px 28px; border-top: 1px solid var(--v-border); }
+
+    .v-form-group { margin-bottom: 16px; }
+    .v-form-group label { display: block; font-size: 13px; font-weight: 600; color: var(--v-text-main); margin-bottom: 6px; }
+    .v-input { width: 100%; padding: 10px 14px; border: 1px solid var(--v-border); border-radius: 8px; font-size: 14px; font-family: inherit; transition: border-color 0.2s; background: white; box-sizing: border-box; }
+    .v-input:focus { outline: none; border-color: var(--v-primary); box-shadow: 0 0 0 3px rgba(48,86,211,0.1); }
+</style>

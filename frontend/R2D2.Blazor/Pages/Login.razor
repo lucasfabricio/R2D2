@@ -1,0 +1,73 @@
+@page "/login"
+@layout Shared.LoginLayout
+@attribute [AllowAnonymous]
+
+<div class="d-flex justify-content-center align-items-center min-vh-100 px-3" 
+     style="background-color: var(--v-bg-body); background-image: radial-gradient(at 0% 0%, rgba(48, 86, 211, 0.05) 0px, transparent 50%), radial-gradient(at 100% 100%, rgba(48, 86, 211, 0.05) 0px, transparent 50%);">
+    <div class="card animate-fade-in" style="max-width: 480px; width: 100%; padding: 48px;">
+        <div class="text-center mb-4">
+            <div class="v-login-logo mx-auto mb-4">
+                <span class="fw-bold fs-4" style="letter-spacing: -1px;">R2</span>
+            </div>
+            <h2 class="fw-bold">Acesso Restrito</h2>
+            <p class="text-muted">Entre com suas credenciais para gerenciar a plataforma R2D2.</p>
+        </div>
+
+        @if (!string.IsNullOrEmpty(_errorMessage))
+        {
+            <div class="v-alert v-alert-danger mb-4">
+                <i>⚠️</i> @_errorMessage
+            </div>
+        }
+
+        <div>
+            <div class="mb-3">
+                <label class="form-label">Identificador do Usuário</label>
+                <div class="input-group">
+                    <span class="input-group-text bg-transparent border-end-0" style="opacity: 0.4;">👤</span>
+                    <input type="text" class="form-control border-start-0" @bind="_username" @bind:event="oninput" placeholder="admin" autofocus />
+                </div>
+            </div>
+
+            <div class="mb-4">
+                <label class="form-label">Senha de Acesso</label>
+                <div class="input-group">
+                    <span class="input-group-text bg-transparent border-end-0" style="opacity: 0.4;">🔒</span>
+                    <input type="password" class="form-control border-start-0" @bind="_password" @bind:event="oninput" placeholder="••••••••" />
+                </div>
+            </div>
+
+            <button class="btn btn-primary w-100 btn-lg" @onclick="HandleLogin" disabled="@_isLoggingIn">
+                @if (_isLoggingIn)
+                {
+                    <span class="v-spinner"></span> <span>Autenticando...</span>
+                }
+                else
+                {
+                    <span>Entrar na Plataforma</span>
+                }
+            </button>
+        </div>
+
+        <div class="text-center mt-4 pt-3">
+            <p class="text-muted mb-0">Esqueceu seus dados? <a href="#" class="fw-semibold text-decoration-none" style="color: var(--v-primary);">Solicitar suporte</a></p>
+            <div class="border-top mt-3 pt-3">
+                <small class="text-muted opacity-75">Acesso Demo: admin / admin123</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .v-login-logo {
+        width: 64px;
+        height: 64px;
+        background: var(--v-primary);
+        color: white;
+        border-radius: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 8px 16px rgba(48, 86, 211, 0.2);
+    }
+</style>

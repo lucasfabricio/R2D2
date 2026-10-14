@@ -1,0 +1,172 @@
+@page "/form/{FormId:guid}"
+@using R2D2.Blazor.Models
+
+<PageTitle>@form?.Name - R2D2</PageTitle>
+
+<div style="max-width: 800px; margin: 2rem auto; padding: 0 1rem; min-height: 80vh; display: flex; flex-direction: column;">
+    @if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="v-spinner v-spinner-lg"></div>
+            <p class="text-muted">Carregando formulário...</p>
+        </div>
+    }
+    else if (form == null)
+    {
+        <div class="text-center py-5">
+            <h2>Formulário não encontrado</h2>
+            <p class="text-muted">O formulário que você está procurando não existe ou foi removido.</p>
+            <a href="/forms" class="btn btn-primary">Voltar para Formulários</a>
+        </div>
+    }
+    else if (isSubmitted)
+    {
+        <div class="card text-center p-5">
+            <div class="card-body">
+                <div style="font-size: 5rem;" class="mb-3">✅</div>
+                <h2>Obrigado!</h2>
+                <p class="text-muted">Suas informações foram enviadas com sucesso.</p>
+                @if (form.WorkflowId != null)
+                {
+                    <p class="fst-italic" style="color: #667eea;">O fluxo de trabalho "<strong>@form.WorkflowName</strong>" foi iniciado.</p>
+                }
+                <div class="d-flex gap-3 justify-content-center mt-4">
+                    <button class="btn btn-primary" @onclick="ResetForm">Enviar Outra Resposta</button>
+                    <a href="/forms" class="btn btn-outline-secondary">Voltar aos Meus Formulários</a>
+                </div>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="card shadow-sm overflow-hidden" style="border-radius: 1.5rem;">
+            <div class="form-header-gradient text-white text-center py-5 px-4">
+                <h1 class="fw-bold text-white mb-0" style="font-size: 2.25rem;">@form.Name</h1>
+                @if (!string.IsNullOrEmpty(form.Description))
+                {
+                    <p class="mt-3 opacity-75 mx-auto" style="max-width: 600px; font-size: 1.1rem;">@form.Description</p>
+                }
+            </div>
+
+            <form @onsubmit="HandleSubmit" class="p-4">
+                <div class="row g-3">
+                    @foreach (var field in form.Fields.OrderBy(f => f.Order))
+                    {
+                        <div class="col-@field.ColumnSize">
+                            @if (field.FieldType != FormFieldType.Checkbox)
+                            {
+                                <label for="@field.Id" class="form-label">@field.Label</label>
+                            }
+
+                            @switch (field.FieldType)
+                            {
+                                case FormFieldType.Text:
+                                    <input type="text" id="@field.Id" class="form-control"
+                                           value="@GetFieldValue(field)"
+                                           @onchange="(e) => SetFieldValue(field, e.Value)"
+                                           placeholder="@field.Label" disabled="@field.IsReadOnly" />
+                                    break;
+                                case FormFieldType.Number:
+                                    <input type="number" id="@field.Id" class="form-control"
+                                           value="@GetFieldValue(field)"
+                                           @onchange="(e) => SetFieldValue(field, e.Value)" disabled="@field.IsReadOnly" />
+                                    break;
+                                case FormFieldType.Date:
+                                    <input type="date" id="@field.Id" class="form-control"
+                                           value="@GetDateValue(field)"
+                                           @onchange="(e) => SetFieldValue(field, e.Value)" disabled="@field.IsReadOnly" />
+                                    break;
+                                case FormFieldType.TextArea:
+                                    <textarea id="@field.Id" class="form-control" rows="4"
+                                              @onchange="(e) => SetFieldValue(field, e.Value)"
+                                              placeholder="@field.Label" disabled="@field.IsReadOnly">@GetFieldValue(field)</textarea>
+                                    break;
+                                case FormFieldType.Checkbox:
+                                    <div class="form-check py-2">
+                                        <input type="checkbox" id="@field.Id" class="form-check-input"
+                                               @onchange="(e) => SetFieldValue(field, e.Value)" disabled="@field.IsReadOnly" />
+                                        <label class="form-check-label" for="@field.Id">@field.Label</label>
+                                    </div>
+                                    break;
+                                case FormFieldType.Radio:
+                                    <div class="form-check py-2">
+                                        <input type="radio" id="@field.Id" class="form-check-input" name="@field.Id"
+                                               @onchange="(e) => SetFieldValue(field, e.Value)" />
+                                        <label class="form-check-label" for="@field.Id">@field.Label</label>
+                                    </div>
+                                    break;
+                                case FormFieldType.Select:
+                                    <select id="@field.Id" class="form-select"
+                                            value="@GetFieldValue(field)"
+                                            @onchange="(e) => HandleSelectChange(field, e.Value)" disabled="@field.IsReadOnly">
+                                        <option value="">-- Selecione --</option>
+                                        @if ((field.SelectSourceListId.HasValue || field.LinkedListId.HasValue) && selectOptions.ContainsKey(field.Id))
+                                        {
+                                            @foreach (var opt in selectOptions[field.Id])
+                                            {
+                                                <option value="@opt.Key">@opt.Value</option>
+                                            }
+                                        }
+                                    </select>
+                                    break;
+                            }
+                        </div>
+                    }
+                </div>
+
+                @if (!string.IsNullOrEmpty(errorMessage))
+                {
+                    <div class="alert alert-danger mt-3">
+                        @if (workflowErrors?.Any() == true)
+                        {
+                            <ul class="mb-0 ps-3">
+                                @foreach (var error in workflowErrors)
+                                {
+                                    <li>@error</li>
+                                }
+                            </ul>
+                        }
+                        else
+                        {
+                            <span>@errorMessage</span>
+                        }
+                    </div>
+                }
+
+                <div class="text-center mt-4">
+                    <button type="submit" class="btn btn-primary btn-lg px-5 rounded-pill shadow" disabled="@isSubmitting"
+                            style="box-shadow: 0 10px 15px -3px rgba(102,126,234,0.4) !important;">
+                        @if (isSubmitting)
+                        {
+                            <span class="v-spinner"></span> <span>Enviando...</span>
+                        }
+                        else
+                        {
+                            <span>@(form.FormType == 1 ? "Salvar Alterações" : "Enviar Informações")</span>
+                        }
+                    </button>
+                </div>
+            </form>
+        </div>
+    }
+</div>
+
+<style>
+    .form-header-gradient {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+
+    /* Bootstrap 12-col mapping for FormView column sizes */
+    .col-1 { grid-column: span 1; }
+    .col-2 { grid-column: span 2; }
+    .col-3 { grid-column: span 3; }
+    .col-4 { grid-column: span 4; }
+    .col-5 { grid-column: span 5; }
+    .col-6 { grid-column: span 6; }
+    .col-7 { grid-column: span 7; }
+    .col-8 { grid-column: span 8; }
+    .col-9 { grid-column: span 9; }
+    .col-10 { grid-column: span 10; }
+    .col-11 { grid-column: span 11; }
+    .col-12 { grid-column: span 12; }
+</style>

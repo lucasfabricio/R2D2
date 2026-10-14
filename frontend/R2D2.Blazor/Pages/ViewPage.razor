@@ -1,0 +1,155 @@
+@page "/view/{ListViewId:guid}"
+@inject ApiService ApiService
+@inject NavigationManager Navigation
+@using R2D2.Blazor.Models
+
+<PageTitle>@(listView?.DisplayName ?? listView?.Name ?? "Visão") - R2D2</PageTitle>
+
+<div style="max-width: 1400px; margin: 0 auto; padding: 1rem;">
+    @if (isLoading)
+    {
+        <div class="text-center py-5 text-muted">Carregando...</div>
+    }
+    else if (listView == null)
+    {
+        <div class="v-empty-state">
+            <div class="v-empty-icon">⚠️</div>
+            <h3>Visão não encontrada</h3>
+            <a href="/list-views" class="btn btn-primary">Voltar para Visões</a>
+        </div>
+    }
+    else
+    {
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h1 class="fs-3 fw-bold mb-1">@(listView.DisplayName ?? listView.Name)</h1>
+                <p class="text-muted mb-0">@listView.ListName — @records.Count registro(s)</p>
+            </div>
+            <div class="d-flex gap-2">
+                @if (listView.CreateFormId.HasValue)
+                {
+                    <button class="btn btn-primary" @onclick="OpenCreateForm">
+                        ➕ Novo Registro
+                    </button>
+                }
+                <button class="btn btn-outline-secondary btn-sm" @onclick="ReloadData">
+                    🔄 Atualizar
+                </button>
+            </div>
+        </div>
+
+        @if (!listView.Columns.Any())
+        {
+            <div class="alert alert-warning">
+                Nenhuma coluna configurada nesta visão. <a href="/list-view-builder/@listView.Id">Configure as colunas</a>.
+            </div>
+        }
+        else
+        {
+            <div class="card shadow-sm">
+                <div class="table-responsive">
+                    <table class="table table-hover table-striped mb-0">
+                        <thead class="table-dark">
+                            <tr>
+                                @foreach (var col in listView.Columns.OrderBy(c => c.Order))
+                                {
+                                    <th>@(col.HeaderLabel ?? col.FieldTechnicalName)</th>
+                                }
+                                @if (listView.UpdateFormId.HasValue)
+                                {
+                                    <th style="width: 100px; text-align: center;">Ações</th>
+                                }
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (!records.Any())
+                            {
+                                <tr>
+                                    <td colspan="@(listView.Columns.Count + (listView.UpdateFormId.HasValue ? 1 : 0))" class="text-center text-muted py-4">
+                                        Nenhum registro encontrado.
+                                    </td>
+                                </tr>
+                            }
+                            else
+                            {
+                                @foreach (var record in records)
+                                {
+                                    <tr>
+                                        @foreach (var col in listView.Columns.OrderBy(c => c.Order))
+                                        {
+                                            <td>@GetCellValue(record, col.FieldTechnicalName)</td>
+                                        }
+                                        @if (listView.UpdateFormId.HasValue)
+                                        {
+                                            <td style="text-align: center;">
+                                                <button class="btn btn-sm btn-outline-primary" @onclick="() => OpenEditForm(record)">
+                                                    ✏️ Editar
+                                                </button>
+                                            </td>
+                                        }
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    [Parameter] public Guid ListViewId { get; set; }
+
+    private ListView? listView;
+    private List<TableData> records = new();
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        isLoading = true;
+        listView = await ApiService.GetListViewAsync(ListViewId);
+
+        if (listView != null)
+        {
+            records = await ApiService.GetTableDataAsync(listView.ListId);
+        }
+        isLoading = false;
+    }
+
+    private async Task ReloadData()
+    {
+        if (listView != null)
+        {
+            records = await ApiService.GetTableDataAsync(listView.ListId);
+        }
+    }
+
+    private string GetCellValue(TableData record, string fieldName)
+    {
+        if (record.Values.TryGetValue(fieldName, out var val) && val != null)
+            return val.ToString() ?? "";
+        return "—";
+    }
+
+    private void OpenCreateForm()
+    {
+        if (listView?.CreateFormId.HasValue == true)
+        {
+            Navigation.NavigateTo($"/form/{listView.CreateFormId.Value}");
+        }
+    }
+
+    private void OpenEditForm(TableData record)
+    {
+        if (listView?.UpdateFormId.HasValue == true)
+        {
+            Navigation.NavigateTo($"/form/{listView.UpdateFormId.Value}?recordId={record.Id}");
+        }
+    }
+}

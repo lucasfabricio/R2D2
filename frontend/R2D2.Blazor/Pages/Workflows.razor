@@ -1,0 +1,307 @@
+@page "/workflows"
+@using R2D2.Blazor.Models
+
+<PageTitle>Workflows - R2D2 Low-Code</PageTitle>
+
+<div class="v-page-header">
+    <div class="v-page-title">
+        <h1>Fluxos de Trabalho</h1>
+        <p>Orquestre automações complexas vinculando regras e ações.</p>
+    </div>
+    <div class="v-header-actions">
+        <button class="btn btn-primary" @onclick="ShowCreateModal">
+            <i>+</i> Novo Fluxo
+        </button>
+    </div>
+</div>
+
+@if (isLoading)
+{
+    <div class="v-loading-area">
+        <div class="v-spinner"></div>
+        <p>Sincronizando motores de automação...</p>
+    </div>
+}
+else if (workflows.Count == 0)
+{
+    <div class="v-card v-empty-state">
+        <div class="v-empty-icon">🔀</div>
+        <h3>Nenhum fluxo encontrado</h3>
+        <p>Desenhe seu primeiro fluxo operacional para automatizar tarefas repetitivas.</p>
+        <button class="btn btn-primary mt-4" @onclick="ShowCreateModal">Projetar Fluxo</button>
+    </div>
+}
+else
+{
+    <div class="v-workflows-grid">
+        @foreach (var workflow in workflows)
+        {
+            <div class="v-card v-workflow-card animate-fade-in @(workflow.IsActive ? "" : "v-workflow-paused")">
+                <div class="v-workflow-card-header">
+                    <div class="v-workflow-title">
+                        <div class="v-status-indicator @(workflow.IsActive ? "v-bg-success" : "v-bg-muted")"></div>
+                        <h3>@workflow.Name</h3>
+                    </div>
+                    <div class="v-header-ops">
+                        <button class="v-icon-btn" @onclick="() => ToggleWorkflow(workflow)" title="@(workflow.IsActive ? "Pausar" : "Ativar")">
+                            @(workflow.IsActive ? "⏸️" : "▶️")
+                        </button>
+                        <button class="v-icon-btn" @onclick="() => EditWorkflow(workflow)" title="Configurar">✏️</button>
+                        <button class="v-icon-btn v-btn-text-danger" @onclick="() => DeleteWorkflow(workflow.Id)" title="Excluir">🗑️</button>
+                    </div>
+                </div>
+                
+                <div class="v-workflow-card-body">
+                    <p>@(workflow.Description ?? "Fluxo de processamento lógico sem descrição técnica.")</p>
+                    
+                    <div class="v-pipeline-preview">
+                        @if (workflow.Steps.Any())
+                        {
+                            <div class="v-pipeline-steps">
+                                @foreach (var step in workflow.Steps.OrderBy(s => s.Order).Take(3))
+                                {
+                                    <div class="v-step-pill">@step.RuleName</div>
+                                    @if (step != workflow.Steps.OrderBy(s => s.Order).Take(3).Last() || workflow.Steps.Count > 3)
+                                    {
+                                        <div class="v-step-arrow">→</div>
+                                    }
+                                }
+                                @if (workflow.Steps.Count > 3)
+                                {
+                                    <div class="v-step-extra">+@(workflow.Steps.Count - 3)</div>
+                                }
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="v-empty-pipeline">Definição de etapas pendente</div>
+                        }
+                    </div>
+                </div>
+                
+                <div class="v-card-footer">
+                    <span class="v-badge v-badge-info">@workflow.Steps.Count etapas</span>
+                    <div class="v-footer-actions">
+                        <button class="btn btn-secondary btn-sm" @onclick="() => OpenWorkflowBuilder(workflow.Id)">Designer</button>
+                        <button class="btn btn-primary btn-sm" @onclick="() => ExecuteWorkflow(workflow.Id)" disabled="@(!workflow.IsActive)">Testar</button>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@* Modal: Create/Edit Workflow *@
+<Modal @ref="workflowModal" Title="@(isEditing ? "Ajustar Processo" : "Novo Fluxo de Automação")">
+    <BodyTemplate>
+        <div class="form-group mb-3">
+            <label class="form-label">Nome do Fluxo</label>
+            <input type="text" class="form-control" @bind="currentWorkflow.Name" placeholder="Ex: Esteira de Aprovação" />
+        </div>
+        <div class="form-group mb-3">
+            <label class="form-label">Diretriz Funcional</label>
+            <textarea class="form-control" @bind="currentWorkflow.Description" rows="3" placeholder="O que este fluxo deve realizar?"></textarea>
+        </div>
+        <div class="form-group mb-3">
+            <label class="form-check-label d-flex align-items-center gap-2">
+                <input type="checkbox" class="form-check-input" @bind="currentWorkflow.IsActive" />
+                <span>Manter fluxo ativo (disponível para execução)</span>
+            </label>
+        </div>
+    </BodyTemplate>
+    <FooterTemplate>
+        <button class="btn btn-secondary" @onclick="CloseModal">Cancelar</button>
+        <button class="btn btn-primary" @onclick="SaveWorkflow">Salvar Fluxo</button>
+    </FooterTemplate>
+</Modal>
+
+<style>
+    .v-loading-area {
+        height: 300px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 16px;
+        color: var(--v-text-muted);
+    }
+
+    .v-workflows-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+        gap: 24px;
+    }
+
+    .v-workflow-card {
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        transition: border-color 0.2s;
+    }
+
+    .v-workflow-paused { opacity: 0.7; }
+
+    .v-workflow-card-header {
+        padding: 24px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 1px solid var(--v-border);
+    }
+
+    .v-workflow-title {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .v-status-indicator {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+    }
+
+    .v-bg-success { background: var(--v-success); box-shadow: 0 0 8px rgba(34, 197, 94, 0.4); }
+    .v-bg-muted { background: var(--v-text-muted); }
+
+    .v-workflow-title h3 { font-size: 16px; margin: 0; }
+
+    .v-header-ops { display: flex; gap: 4px; }
+
+    .v-workflow-card-body {
+        padding: 24px;
+        flex: 1;
+    }
+
+    .v-workflow-card-body p {
+        font-size: 14px;
+        color: var(--v-text-muted);
+        margin-bottom: 24px;
+    }
+
+    .v-pipeline-preview {
+        background: #F9FAFB;
+        border: 1px dashed var(--v-border);
+        border-radius: 12px;
+        padding: 16px;
+    }
+
+    .v-pipeline-steps {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+
+    .v-step-pill {
+        background: white;
+        border: 1px solid var(--v-border);
+        padding: 6px 12px;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--v-primary);
+    }
+
+    .v-step-arrow { color: var(--v-text-muted); font-size: 18px; }
+    .v-step-extra { font-size: 12px; font-weight: 700; color: var(--v-text-muted); }
+
+    .v-empty-pipeline {
+        text-align: center;
+        font-size: 13px;
+        color: var(--v-text-muted);
+        font-style: italic;
+    }
+
+    .v-card-footer {
+        padding: 16px 24px;
+        background: #F9FAFB;
+        border-top: 1px solid var(--v-border);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        border-radius: 0 0 12px 12px;
+    }
+
+    .v-footer-actions { display: flex; gap: 10px; }
+
+    .v-icon-btn {
+        background: transparent;
+        border: none;
+        cursor: pointer;
+        padding: 8px;
+        border-radius: 6px;
+        transition: all 0.2s;
+        font-size: 16px;
+        color: var(--v-text-muted);
+    }
+
+    .v-icon-btn:hover { background: #E5E7EB; color: var(--v-text-main); }
+    .v-btn-text-danger:hover { color: var(--v-danger); background: rgba(242, 48, 48, 0.1); }
+
+    .v-empty-state {
+        text-align: center;
+        padding: 80px 40px;
+        max-width: 600px;
+        margin: 0 auto;
+    }
+
+    .v-empty-icon { font-size: 64px; margin-bottom: 24px; opacity: 0.3; }
+
+    /* Modal Styling */
+    .v-modal-backdrop {
+        position: fixed;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(17, 25, 40, 0.6);
+        backdrop-filter: blur(4px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+        padding: 24px;
+    }
+
+    .v-modal-content {
+        width: 100%;
+        max-width: 520px;
+        padding: 0 !important;
+    }
+
+    .v-modal-header {
+        padding: 24px 32px;
+        border-bottom: 1px solid var(--v-border);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .v-close-modal {
+        background: transparent;
+        border: none;
+        font-size: 24px;
+        cursor: pointer;
+        color: var(--v-text-muted);
+    }
+
+    .v-modal-body { padding: 32px; }
+
+    .v-modal-footer {
+        padding: 24px 32px;
+        background: #F9FAFB;
+        border-top: 1px solid var(--v-border);
+        display: flex;
+        justify-content: flex-end;
+        gap: 12px;
+    }
+
+    .v-checkbox {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        cursor: pointer;
+        font-size: 13px;
+        font-weight: 500;
+    }
+
+    .v-checkbox input { width: 16px; height: 16px; }
+</style>

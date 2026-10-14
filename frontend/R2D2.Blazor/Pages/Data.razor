@@ -1,0 +1,219 @@
+@page "/data"
+@page "/data/{ListId:guid}"
+@using R2D2.Blazor.Models
+
+<PageTitle>Explorador - R2D2 Low-Code</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1 class="mb-1">Arquivo de Dados</h1>
+        <p class="text-muted mb-0">Gerencie e explore os registros armazenados em suas entidades.</p>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-md-4 col-lg-3">
+        <div class="card animate-fade-in">
+            <div class="card-header bg-transparent">
+                <h6 class="text-uppercase text-muted fw-bold mb-0" style="font-size: 13px; letter-spacing: 0.05em;">Entidades Ativas</h6>
+            </div>
+            <div class="card-body p-2">
+                @if (lists.Any())
+                {
+                    <div class="d-flex flex-column gap-1">
+                        @foreach (var list in lists)
+                        {
+                            <button class="v-list-item-btn @(selectedListId == list.Id ? "active" : "")"
+                                    @onclick="() => SelectList(list.Id)">
+                                <span style="font-size: 18px;">📊</span>
+                                <div class="d-flex flex-column" style="gap: 2px;">
+                                    <span class="fw-semibold" style="font-size: 14px;" title="@list.Name">@(string.IsNullOrEmpty(list.DisplayName) ? list.Name : list.DisplayName)</span>
+                                    <small class="opacity-75">@GetListDataCount(list.Id) registros</small>
+                                </div>
+                            </button>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <div class="text-center text-muted py-4">
+                        <p class="mb-2">Nenhuma entidade disponível.</p>
+                        <a href="/lists" class="btn btn-primary btn-sm">Criar Estrutura</a>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-8 col-lg-9">
+        <div class="card animate-fade-in" style="min-height: 600px;">
+            @if (selectedListId == Guid.Empty)
+            {
+                <div class="card-body d-flex flex-column align-items-center justify-content-center text-center text-muted" style="min-height: 500px;">
+                    <div style="font-size: 48px; opacity: 0.2;" class="mb-3">⬅️</div>
+                    <h5>Selecione uma Entidade</h5>
+                    <p>Navegue pelas estruturas de dados no painel lateral para visualizar os registros.</p>
+                </div>
+            }
+            else if (isLoadingData)
+            {
+                <div class="card-body d-flex flex-column align-items-center justify-content-center text-muted" style="min-height: 400px;">
+                    <div class="v-spinner v-spinner-lg"></div>
+                    <p class="mt-3">Sincronizando registros de @selectedList?.Name...</p>
+                </div>
+            }
+            else
+            {
+                <div class="card-header bg-transparent d-flex justify-content-between align-items-start py-3 px-4">
+                    <div>
+                        <h5 class="mb-1">@selectedList?.Name</h5>
+                        <span class="v-badge v-badge-info">Banco de Produção</span>
+                    </div>
+                    <button class="btn btn-primary" @onclick="ShowCreateModal">
+                        <i>+</i> Novo Registro
+                    </button>
+                </div>
+
+                @if (tableData.Count == 0)
+                {
+                    <div class="card-body d-flex flex-column align-items-center justify-content-center text-center" style="min-height: 400px;">
+                        <div style="font-size: 64px; opacity: 0.3;" class="mb-3">💾</div>
+                        <h5>Sem registros encontrados</h5>
+                        <p class="text-muted">Esta entidade ainda não possui dados persistidos em disco.</p>
+                        <button class="btn btn-outline-secondary mt-3" @onclick="ShowCreateModal">Adicionar Registro</button>
+                    </div>
+                }
+                else
+                {
+                    <div class="table-responsive p-3">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead>
+                                <tr>
+                                    <th>REF_ID</th>
+                                    @foreach (var field in selectedList?.Fields ?? new())
+                                    {
+                                        <th>@field.Label</th>
+                                    }
+                                    <th class="text-end">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var row in tableData)
+                                {
+                                    <tr>
+                                        <td><code class="v-id-code">@row.Id.ToString().ToUpper()[..8]</code></td>
+                                        @foreach (var field in selectedList?.Fields ?? new())
+                                        {
+                                            <td>@GetFieldValue(row, field.TechnicalName)</td>
+                                        }
+                                        <td class="text-end">
+                                            <div class="d-flex gap-1 justify-content-end">
+                                                <button class="v-icon-btn" @onclick="() => EditRecord(row)" title="Ajustar">✏️</button>
+                                                <button class="v-icon-btn text-danger" @onclick="() => DeleteRecord(row.Id)" title="Remover">🗑️</button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            }
+        </div>
+    </div>
+</div>
+
+@* Modal: Create/Edit Record *@
+<Modal @ref="dataModal" Title="@(isEditing ? "Ajustar Registro" : "Entrada de Dados")" IsScrollable="true" Size="ModalSize.Large">
+    <BodyTemplate>
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="v-alert v-alert-danger mb-3">
+                <i>⚠️</i> @errorMessage
+            </div>
+        }
+
+        <div class="row g-3">
+            @foreach (var field in selectedList?.Fields ?? new())
+            {
+                <div class="col-12">
+                    <label class="form-label">@field.Label @(field.IsRequired ? "*" : "")</label>
+                    @if (field.FieldType == FieldType.Relationship && field.RelatedListId.HasValue)
+                    {
+                        <select class="form-select" value="@GetFormValue(field.TechnicalName)"
+                                @onchange="e => SetFormValue(field.TechnicalName, e.Value?.ToString())">
+                            <option value="">-- Selecione a Referência --</option>
+                            @foreach (var record in GetFilteredRecords(field))
+                            {
+                                <option value="@record.Id">@GetRecordLabel(record)</option>
+                            }
+                        </select>
+                    }
+                    else if (field.FieldType == FieldType.Select && !string.IsNullOrEmpty(field.SelectOptions))
+                    {
+                        <select class="form-select" value="@GetFormValue(field.TechnicalName)"
+                                @onchange="e => SetFormValue(field.TechnicalName, e.Value?.ToString())">
+                            <option value="">-- Selecione --</option>
+                            @foreach (var option in field.SelectOptions.Split(','))
+                            {
+                                <option value="@option.Trim()">@option.Trim()</option>
+                            }
+                        </select>
+                    }
+                    else if (field.FieldType == FieldType.Boolean)
+                    {
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" checked="@(GetFormValue(field.TechnicalName) == "true")"
+                                   @onchange="e => SetFormValue(field.TechnicalName, e.Value?.ToString())" />
+                            <label class="form-check-label">Sim / Não</label>
+                        </div>
+                    }
+                    else if (field.FieldType == FieldType.Date)
+                    {
+                        <input type="date" class="form-control"
+                               value="@GetFormValue(field.TechnicalName)"
+                               @onchange="e => SetFormValue(field.TechnicalName, e.Value?.ToString())" />
+                    }
+                    else
+                    {
+                        <input type="text" class="form-control"
+                               value="@GetFormValue(field.TechnicalName)"
+                               @onchange="e => SetFormValue(field.TechnicalName, e.Value?.ToString())"
+                               placeholder="Insira @field.Label..." />
+                    }
+                </div>
+            }
+        </div>
+    </BodyTemplate>
+    <FooterTemplate>
+        <button class="btn btn-outline-secondary" @onclick="CloseModal">Cancelar</button>
+        <button class="btn btn-primary" @onclick="SaveRecord">Persistir Dados</button>
+    </FooterTemplate>
+</Modal>
+
+<style>
+    .v-list-item-btn {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        padding: 12px 16px;
+        border: 1px solid transparent;
+        border-radius: 10px;
+        background: transparent;
+        cursor: pointer;
+        text-align: left;
+        transition: all 0.2s ease;
+        color: var(--v-text-main);
+        width: 100%;
+    }
+
+    .v-list-item-btn:hover {
+        background: #F4F7FF;
+        color: var(--v-primary);
+    }
+
+    .v-list-item-btn.active {
+        background: var(--v-primary);
+        color: white;
+    }
+</style>

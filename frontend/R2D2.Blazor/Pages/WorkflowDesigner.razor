@@ -1,0 +1,173 @@
+@page "/workflowdesigner/{WorkflowId:guid}"
+@using R2D2.Blazor.Models
+
+<PageTitle>Desenhar Fluxo - @(workflow?.Name ?? "Carregando...")</PageTitle>
+
+<div class="page-header">
+    <div class="back-link">
+        <a href="/workflows" class="btn btn-sm btn-secondary">← Voltar para Fluxos</a>
+    </div>
+    <div class="header-content">
+        <h1>Desenhar Fluxo: @workflow?.Name</h1>
+        <p class="subtitle">Adicione regras de negócio como etapas para criar um processo automatizado</p>
+    </div>
+</div>
+
+@if (isLoading)
+{
+    <div class="loading">Carregando dados do fluxo...</div>
+}
+else if (workflow == null)
+{
+    <div class="error-state">
+        <h3>Fluxo não encontrado</h3>
+        <p>O fluxo solicitado não pôde ser carregado.</p>
+        <a href="/workflows" class="btn btn-primary">Voltar para Fluxos</a>
+    </div>
+}
+else
+{
+    <div class="builder-container">
+        <div class="flow-canvas">
+            <div class="section-header">
+                <h3>Fluxo de Processo</h3>
+                <span class="badge">@workflow.Steps.Count Etapas</span>
+            </div>
+            
+            <div class="steps-list">
+                @if (workflow.Steps.Count == 0)
+                {
+                    <div class="empty-canvas">
+                        <div class="empty-icon">📍</div>
+                        <p>Nenhuma etapa adicionada ainda. Adicione regras de negócio do painel à direita para iniciar seu fluxo.</p>
+                    </div>
+                }
+                else
+                {
+                    <div class="start-node">INÍCIO</div>
+                    <div class="connector-line"></div>
+                    
+                    @foreach (var step in workflow.Steps.OrderBy(s => s.Order))
+                    {
+                        <div class="step-card">
+                            <div class="step-number">@(step.Order + 1)</div>
+                            <div class="step-content">
+                                <div class="step-info">
+                                    <span class="step-name">@step.RuleName</span>
+                                    <span class="step-id">ID: @step.Id.ToString().Substring(0, 8)...</span>
+                                </div>
+                                <button class="btn-remove" @onclick="() => RemoveStep(step.Id)" title="Remover etapa">×</button>
+                            </div>
+                        </div>
+                        <div class="connector-line"></div>
+                    }
+                    
+                    <div class="end-node">FIM</div>
+                }
+            </div>
+        </div>
+
+        <div class="rules-library">
+            <div class="section-header">
+                <h3>Regras Disponíveis</h3>
+            </div>
+            <div class="library-search">
+                <input type="text" placeholder="Pesquisar regras..." @bind="searchQuery" @bind:event="oninput" />
+            </div>
+            <div class="library-content">
+                @if (availableRules.Count == 0)
+                {
+                    <p class="hint">Nenhuma regra de negócio encontrada. Crie algumas regras primeiro!</p>
+                }
+                else
+                {
+                    <div class="rules-list">
+                        @foreach (var rule in filteredRules)
+                        {
+                            <div class="rule-item">
+                                <div class="rule-info">
+                                    <span class="rule-name">@rule.Name</span>
+                                    <span class="rule-type">@rule.Type</span>
+                                </div>
+                                <button class="btn btn-sm btn-primary" @onclick="() => AddStep(rule.Id)">Adicionar</button>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .page-header { display: flex; flex-direction: column; gap: 1rem; margin-bottom: 2rem; }
+    .header-content h1 { margin: 0; color: #333; }
+    .subtitle { color: #666; margin: 0.25rem 0 0 0; }
+    .back-link { margin-bottom: 0.5rem; }
+
+    .builder-container { display: grid; grid-template-columns: 1fr 350px; gap: 2rem; align-items: start; }
+
+    .flow-canvas { background: white; border-radius: 1rem; border: 1px solid #e5e7eb; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); overflow: hidden; padding-bottom: 2rem; }
+    .section-header { padding: 1.25rem 1.5rem; background: #f9fafb; border-bottom: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: center; }
+    .section-header h3 { margin: 0; font-size: 1.1rem; color: #374151; }
+    .badge { background: #667eea; color: white; padding: 0.2rem 0.6rem; border-radius: 1rem; font-size: 0.75rem; font-weight: 600; }
+
+    .steps-list { padding: 2rem; display: flex; flex-direction: column; align-items: center; min-height: 500px; }
+    .empty-canvas { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 300px; border: 2px dashed #e5e7eb; border-radius: 0.75rem; color: #9ca3af; text-align: center; padding: 2rem; }
+    .empty-icon { font-size: 3rem; margin-bottom: 1rem; }
+
+    .start-node, .end-node {
+        background: #374151; color: white; padding: 0.5rem 1.5rem; border-radius: 2rem;
+        font-weight: bold; font-size: 0.8rem; letter-spacing: 0.05em;
+    }
+    .end-node { background: #6b7280; }
+
+    .connector-line { width: 2px; height: 30px; background: #e5e7eb; position: relative; }
+    .connector-line::after {
+        content: ""; position: absolute; bottom: -2px; left: -4px;
+        border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 5px solid #e5e7eb;
+    }
+
+    .step-card {
+        display: flex; align-items: center; background: white; border: 1px solid #e5e7eb; border-radius: 0.75rem;
+        width: 100%; max-width: 400px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); transition: all 0.2s;
+    }
+    .step-card:hover { border-color: #667eea; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(102,126,234,0.1); }
+    
+    .step-number {
+        background: #667eea; color: white; height: 100%; padding: 1rem;
+        border-top-left-radius: 0.75rem; border-bottom-left-radius: 0.75rem;
+        font-weight: bold; font-size: 1.1rem; min-width: 50px; text-align: center;
+    }
+
+    .step-content { flex: 1; padding: 1rem; display: flex; justify-content: space-between; align-items: center; }
+    .step-info { display: flex; flex-direction: column; }
+    .step-name { font-weight: 600; color: #374151; }
+    .step-id { font-size: 0.75rem; color: #9ca3af; font-family: monospace; }
+    
+    .btn-remove { background: none; border: none; color: #d1d5db; font-size: 1.5rem; cursor: pointer; transition: color 0.2s; }
+    .btn-remove:hover { color: #ef4444; }
+
+    .rules-library { background: white; border-radius: 1rem; border: 1px solid #e5e7eb; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); position: sticky; top: 1rem; overflow: hidden; }
+    .library-search { padding: 1rem; border-bottom: 1px solid #e5e7eb; }
+    .library-search input { width: 100%; padding: 0.6rem; border: 1px solid #d1d5db; border-radius: 0.5rem; font-size: 0.9rem; }
+    
+    .library-content { padding: 1rem; }
+    .rules-list { display: flex; flex-direction: column; gap: 0.5rem; max-height: 60vh; overflow-y: auto; }
+    .rule-item {
+        display: flex; justify-content: space-between; align-items: center; padding: 0.75rem; background: #f9fafb;
+        border: 1px solid #e5e7eb; border-radius: 0.5rem; transition: all 0.2s;
+    }
+    .rule-item:hover { border-color: #d1d5db; background: #f3f4f6; }
+    .rule-info { display: flex; flex-direction: column; gap: 0.1rem; }
+    .rule-name { font-weight: 500; font-size: 0.875rem; color: #374151; }
+    .rule-type { font-size: 0.7rem; color: #667eea; font-weight: 600; text-transform: uppercase; }
+    
+    .hint { color: #9ca3af; font-size: 0.875rem; text-align: center; padding: 2rem 0; font-style: italic; }
+    .loading, .error-state { text-align: center; padding: 4rem 2rem; background: #f9fafb; border-radius: 1rem; }
+    
+    .btn { padding: 0.5rem 1rem; border: none; border-radius: 0.5rem; cursor: pointer; font-weight: 600; transition: all 0.2s; text-decoration: none; display: inline-block; }
+    .btn-primary { background: #667eea; color: white; }
+    .btn-secondary { background: #e5e7eb; color: #374151; }
+    .btn-sm { padding: 0.25rem 0.5rem; font-size: 0.875rem; }
+</style>

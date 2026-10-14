@@ -1,0 +1,179 @@
+@page "/list-view-builder/{ListViewId:guid}"
+@inject ApiService ApiService
+@inject NavigationManager Navigation
+
+<div class="v-page">
+    <div class="v-page-header">
+        <div class="v-page-header-left">
+            <button class="v-btn v-btn-sm" @onclick="GoBack">← Voltar</button>
+            <div>
+                <h1 class="v-page-title">🔧 @(listView?.DisplayName ?? listView?.Name ?? "Visão")</h1>
+                <p class="v-page-subtitle">Configurar colunas da visão de lista</p>
+            </div>
+        </div>
+        <button class="v-btn v-btn-primary" @onclick="SaveColumns" disabled="@isSaving">
+            💾 Salvar Colunas
+        </button>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="v-loading">Carregando...</div>
+    }
+    else if (listView == null)
+    {
+        <div class="v-empty-state">
+            <div class="v-empty-icon">⚠️</div>
+            <h3>Visão não encontrada</h3>
+        </div>
+    }
+    else
+    {
+        <div class="row g-4">
+            @* Available Fields *@
+            <div class="col-md-5">
+                <div class="card">
+                    <div class="card-header fw-bold">📦 Campos Disponíveis</div>
+                    <div class="card-body" style="max-height: 500px; overflow-y: auto;">
+                        @if (!availableFields.Any())
+                        {
+                            <p class="text-muted">Nenhum campo disponível nesta lista.</p>
+                        }
+                        else
+                        {
+                            @foreach (var field in availableFields)
+                            {
+                                bool isSelected = selectedColumns.Any(c => c.FieldTechnicalName == field.TechnicalName);
+                                <div class="d-flex justify-content-between align-items-center p-2 mb-1 rounded @(isSelected ? "bg-primary bg-opacity-10" : "bg-light")">
+                                    <div>
+                                        <strong>@field.Label</strong>
+                                        <br/><small class="text-muted">@field.TechnicalName</small>
+                                    </div>
+                                    @if (!isSelected)
+                                    {
+                                        <button class="btn btn-sm btn-outline-primary" @onclick="() => AddColumn(field)">➕</button>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-primary">✓ Adicionado</span>
+                                    }
+                                </div>
+                            }
+                        }
+                    </div>
+                </div>
+            </div>
+
+            @* Selected Columns *@
+            <div class="col-md-7">
+                <div class="card">
+                    <div class="card-header fw-bold">📋 Colunas Selecionadas (ordem de exibição)</div>
+                    <div class="card-body" style="max-height: 500px; overflow-y: auto;">
+                        @if (!selectedColumns.Any())
+                        {
+                            <p class="text-muted">Adicione campos à esquerda para configurar as colunas.</p>
+                        }
+                        else
+                        {
+                            @for (int i = 0; i < selectedColumns.Count; i++)
+                            {
+                                var col = selectedColumns[i];
+                                var idx = i;
+                                <div class="d-flex justify-content-between align-items-center p-2 mb-1 rounded bg-light">
+                                    <div class="d-flex align-items-center gap-2">
+                                        <span class="badge bg-secondary">@(idx + 1)</span>
+                                        <div>
+                                            <input type="text" class="form-control form-control-sm" style="width: 200px;"
+                                                   @bind="col.HeaderLabel" placeholder="@col.FieldTechnicalName" />
+                                            <small class="text-muted">@col.FieldTechnicalName</small>
+                                        </div>
+                                    </div>
+                                    <div class="d-flex gap-1">
+                                        @if (idx > 0)
+                                        {
+                                            <button class="btn btn-sm btn-outline-secondary" @onclick="() => MoveUp(idx)">↑</button>
+                                        }
+                                        @if (idx < selectedColumns.Count - 1)
+                                        {
+                                            <button class="btn btn-sm btn-outline-secondary" @onclick="() => MoveDown(idx)">↓</button>
+                                        }
+                                        <button class="btn btn-sm btn-outline-danger" @onclick="() => RemoveColumn(idx)">🗑</button>
+                                    </div>
+                                </div>
+                            }
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public Guid ListViewId { get; set; }
+
+    private ListView? listView;
+    private List<DynamicField> availableFields = new();
+    private List<ListViewColumn> selectedColumns = new();
+    private bool isLoading = true;
+    private bool isSaving = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        isLoading = true;
+        listView = await ApiService.GetListViewAsync(ListViewId);
+
+        if (listView != null)
+        {
+            // Load fields for the linked list
+            availableFields = await ApiService.GetListFieldsAsync(listView.ListId);
+
+            // Load existing columns
+            selectedColumns = listView.Columns.OrderBy(c => c.Order).ToList();
+        }
+
+        isLoading = false;
+    }
+
+    private void GoBack() => Navigation.NavigateTo("/list-views");
+
+    private void AddColumn(DynamicField field)
+    {
+        selectedColumns.Add(new ListViewColumn
+        {
+            FieldTechnicalName = field.TechnicalName,
+            HeaderLabel = field.Label,
+            Order = selectedColumns.Count
+        });
+    }
+
+    private void RemoveColumn(int index) => selectedColumns.RemoveAt(index);
+
+    private void MoveUp(int index)
+    {
+        if (index <= 0) return;
+        (selectedColumns[index], selectedColumns[index - 1]) = (selectedColumns[index - 1], selectedColumns[index]);
+    }
+
+    private void MoveDown(int index)
+    {
+        if (index >= selectedColumns.Count - 1) return;
+        (selectedColumns[index], selectedColumns[index + 1]) = (selectedColumns[index + 1], selectedColumns[index]);
+    }
+
+    private async Task SaveColumns()
+    {
+        isSaving = true;
+        var columnsPayload = selectedColumns.Select((c, i) => (object)new
+        {
+            FieldTechnicalName = c.FieldTechnicalName,
+            Order = i,
+            HeaderLabel = c.HeaderLabel
+        }).ToList();
+
+        await ApiService.ReplaceListViewColumnsAsync(ListViewId, columnsPayload);
+        isSaving = false;
+
+        Navigation.NavigateTo("/list-views");
+    }
+}

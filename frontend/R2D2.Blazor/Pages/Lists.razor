@@ -1,0 +1,204 @@
+@page "/lists"
+@inject ApiService ApiService
+
+<div style="max-width: 1200px;">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="fs-3 fw-bold mb-1">📊 Listas</h1>
+            <p class="text-muted mb-0">Gerencie as listas de dados do sistema</p>
+        </div>
+        <button class="btn btn-primary" @onclick="OpenCreateModal">
+            ➕ Nova Lista
+        </button>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="text-center py-5 text-muted">Carregando...</div>
+    }
+    else if (!lists.Any())
+    {
+        <div class="v-empty-state">
+            <div class="v-empty-icon">📊</div>
+            <h3>Nenhuma lista cadastrada</h3>
+            <p>Crie sua primeira lista para começar</p>
+        </div>
+    }
+    else
+    {
+        <div class="row g-3">
+            @foreach (var list in lists)
+            {
+                <div class="col-md-6 col-lg-4">
+                    <div class="card v-clickable-card h-100" @onclick="() => OpenEditModal(list)">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <div class="d-flex flex-column mb-2">
+                                    <h5 class="card-title fw-bold mb-0">@(string.IsNullOrEmpty(list.DisplayName) ? list.Name : list.DisplayName)</h5>
+                                    @if (!string.IsNullOrEmpty(list.DisplayName))
+                                    {
+                                        <small class="text-muted">@list.Name</small>
+                                    }
+                                </div>
+                                <button class="btn btn-outline-danger btn-sm" style="height: fit-content;" @onclick:stopPropagation="true" @onclick="() => DeleteList(list)">🗑</button>
+                            </div>
+                            <p class="text-muted small mb-3">@(list.Description ?? "Sem descrição")</p>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span class="badge bg-primary bg-opacity-10 text-primary">@list.Fields.Count campo(s)</span>
+                                <small class="text-muted">@list.CreatedAt.ToString("dd/MM/yyyy")</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@* Modal: Create/Edit List *@
+<Modal @ref="listModal" Title="@(editingList?.Id != Guid.Empty ? "Editar Lista" : "Nova Lista")" IsScrollable="true" Size="ModalSize.ExtraLarge">
+    <BodyTemplate>
+        <div class="row g-3 mb-3">
+            <div class="col-md-6">
+                <label class="form-label">Nome Interno</label>
+                <input type="text" class="form-control" @bind="editingList!.Name" placeholder="Ex: lst_dados" />
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Nome Amigável</label>
+                <input type="text" class="form-control" @bind="editingList!.DisplayName" placeholder="Ex: Meus Dados" />
+            </div>
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Descrição</label>
+            <textarea class="form-control" rows="3" @bind="editingList!.Description" placeholder="Descrição opcional"></textarea>
+        </div>
+
+        @if (editingList?.Id != Guid.Empty)
+        {
+            <div class="d-flex justify-content-between align-items-center mt-4 pt-3 border-top mb-3">
+                <h6 class="fw-bold mb-0">Campos</h6>
+                <button class="btn btn-primary btn-sm" @onclick="AddNewField">➕ Novo Campo</button>
+            </div>
+
+            @if (editingList.Fields.Any())
+            {
+                <div class="d-flex flex-column gap-2">
+                    @foreach (var field in editingList.Fields)
+                    {
+                        <div class="border rounded-3 @(editingFieldId == field.Id ? "border-primary bg-white" : "bg-light")" style="transition: all 0.2s;">
+                            @if (editingFieldId == field.Id)
+                            {
+                                <div class="p-3">
+                                    <div class="row g-3">
+                                        <div class="col-md-6">
+                                            <label class="form-label">Label</label>
+                                            <input type="text" class="form-control" @bind="field.Label" />
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Nome Técnico</label>
+                                            <input type="text" class="form-control" @bind="field.TechnicalName" />
+                                        </div>
+                                    </div>
+                                    <div class="row g-3 mt-1">
+                                        <div class="col-md-6">
+                                            <label class="form-label">Tipo de Dado</label>
+                                            <select class="form-select" @bind="field.FieldType">
+                                                @foreach (var ft in Enum.GetValues<FieldType>())
+                                                {
+                                                    <option value="@ft">@ft</option>
+                                                }
+                                            </select>
+                                        </div>
+                                        <div class="col-auto d-flex align-items-end pb-1">
+                                            <div class="form-check">
+                                                <input type="checkbox" class="form-check-input" @bind="field.IsRequired" id="req-@field.Id" />
+                                                <label class="form-check-label" for="req-@field.Id">Obrigatório</label>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    @if (field.FieldType == FieldType.Text)
+                                    {
+                                        <div class="mt-3">
+                                            <label class="form-label">Max. Caracteres</label>
+                                            <input type="number" class="form-control" @bind="field.MaxLength" placeholder="Ex: 200" />
+                                        </div>
+                                    }
+
+                                    @if (field.FieldType == FieldType.Relationship)
+                                    {
+                                        <div class="row g-3 mt-1">
+                                            <div class="col-md-6">
+                                                <label class="form-label">Lista Relacionada</label>
+                                                <select class="form-select" @bind="field.RelatedListId">
+                                                    <option value="">Selecione...</option>
+                                                    @foreach (var rl in lists)
+                                                    {
+                                                        <option value="@rl.Id">@rl.Name</option>
+                                                    }
+                                                </select>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label">Campo da Lista</label>
+                                                <select class="form-select" @bind="field.RelatedFieldTechnicalName">
+                                                    <option value="">Selecione...</option>
+                                                    @if (field.RelatedListId.HasValue)
+                                                    {
+                                                        <option value="sys_id">ID (sys_id)</option>
+                                                        var relatedList = lists.FirstOrDefault(l => l.Id == field.RelatedListId);
+                                                        @if (relatedList != null)
+                                                        {
+                                                            @foreach (var rf in relatedList.Fields)
+                                                            {
+                                                                <option value="@rf.TechnicalName">@rf.Label (@rf.TechnicalName)</option>
+                                                            }
+                                                        }
+                                                    }
+                                                </select>
+                                            </div>
+                                        </div>
+                                    }
+                                    
+                                    @if (field.FieldType == FieldType.Select)
+                                    {
+                                        <div class="mt-3">
+                                            <label class="form-label">Opções (JSON Array)</label>
+                                            <textarea class="form-control" rows="3" @bind="field.SelectOptions" placeholder='["Opção 1", "Opção 2"]'></textarea>
+                                            <small class="text-muted">Insira as opções como um array JSON de strings.</small>
+                                        </div>
+                                    }
+
+                                    <div class="d-flex gap-2 mt-3">
+                                        <button class="btn btn-primary btn-sm" @onclick="() => SaveField(field)">💾 Salvar</button>
+                                        <button class="btn btn-outline-secondary btn-sm" @onclick="() => CancelFieldEdit()">Cancelar</button>
+                                        <button class="btn btn-outline-danger btn-sm" @onclick="() => DeleteField(field)">🗑 Excluir</button>
+                                    </div>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="p-3 d-flex justify-content-between align-items-center" style="cursor: pointer;" @onclick="() => StartEditField(field)">
+                                    <div class="d-flex align-items-center gap-1">
+                                        <strong>@field.Label</strong>
+                                        <span class="v-badge v-badge-sm">@field.FieldType</span>
+                                        @if (field.IsRequired) { <span class="v-badge v-badge-sm v-badge-warn">Obrigatório</span> }
+                                        @if (field.MaxLength.HasValue) { <span class="v-badge v-badge-sm">Max: @field.MaxLength</span> }
+                                    </div>
+                                    <span class="v-field-tech">@field.TechnicalName</span>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+            else
+            {
+                <p class="text-muted text-center py-3">Nenhum campo cadastrado. Adicione campos à lista.</p>
+            }
+        }
+    </BodyTemplate>
+    <FooterTemplate>
+        <button class="btn btn-outline-secondary" @onclick="CloseModals">Cancelar</button>
+        <button class="btn btn-primary" @onclick="SaveList">💾 Salvar Lista</button>
+    </FooterTemplate>
+</Modal>
